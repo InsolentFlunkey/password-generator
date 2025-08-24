@@ -1,0 +1,8 @@
+#  App specific
+generated_passwords/
+
+#  Python
+__pycache__/
+
+#  Virtual environment
+.venv/
