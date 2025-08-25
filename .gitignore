@@ -1,5 +1,6 @@
 #  App specific
 generated_passwords/
+*wordlist.txt
 
 #  Python
 __pycache__/

@@ -18,6 +18,8 @@ import math
 import secrets
 import string
 import sys
+import re
+
 from pathlib import Path
 from typing import List, Dict
 
@@ -635,28 +637,83 @@ class PasswordGeneratorWindow(QMainWindow):
             self.update_entropy_labels()
 
     def _load_wordlist_from_path(self, path: str) -> bool:
+        """
+        Load a wordlist from `path`, accepting both:
+        - single-column:   <word>
+        - diceware style:  <digits or dice 11111> <whitespace or tab> <word>
+
+        Rules:
+        - Ignore empty lines and lines starting with '#'
+        - If first token is a number (e.g., '11111' or any digits), drop it and use the next token
+        - Normalize to lowercase
+        - Keep only words consisting of [a-z] plus optional '-' or '\''
+
+        Returns True if at least one usable word was loaded.
+        """
         try:
             words: List[str] = []
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    w = line.strip()
+                for raw in f:
+                    line = raw.strip()
+                    if not line or line.startswith("#"):
+                        continue
+
+                    tok_word: str | None = None
+
+                    # Prefer tab or multiple-whitespace splits; also accept comma just in case
+                    # We'll attempt a single split into (left, right)
+                    # and decide whether to drop the left token if it's numeric/dice-like.
+                    def split_once(s: str) -> tuple[str, str] | None:
+                        for sep in ("\t", "  ", " ", ","):
+                            if sep in s:
+                                left, right = s.split(sep, 1)
+                                return left.strip(), right.strip()
+                        return None
+
+                    pair = split_once(line)
+                    if pair:
+                        left, right = pair
+                        # If left is dice-style digits (11111..66666) or any integer, treat right as the word
+                        if re.fullmatch(r"[1-6]{5}", left) or left.isdigit():
+                            tok_word = right
+                        else:
+                            # Not a numeric/dice prefix; keep the whole line as the candidate word
+                            tok_word = line
+                    else:
+                        tok_word = line
+
+                    # If the chosen part still has extra cols (e.g., "11111\tword\tfreq"),
+                    # keep the last token (common in some lists)
+                    if "\t" in tok_word or " " in tok_word or "," in tok_word:
+                        parts = re.split(r"[\t, ]+", tok_word.strip())
+                        if parts:
+                            tok_word = parts[-1]
+
+                    w = tok_word.strip().lower()
                     if not w:
                         continue
-                    if all(("a" <= ch.lower() <= "z") or ch in ("'", "-") for ch in w):
-                        words.append(w.lower())
+
+                    # Validate allowed characters: letters plus apostrophe or hyphen
+                    if all(("a" <= ch <= "z") or ch in ("'", "-") for ch in w):
+                        words.append(w)
+
             # Dedup preserve order
             seen, filtered = set(), []
             for w in words:
                 if w not in seen:
                     seen.add(w); filtered.append(w)
+
             if len(filtered) < 256:
                 QMessageBox.warning(self, "Wordlist too small",
                     "The selected wordlist has fewer than 256 words.\nConsider using a larger list (e.g., EFF long).")
+
             if filtered:
                 self.wordlist = filtered
                 return True
+
             self.show_error("No usable words found in the selected file.")
             return False
+
         except Exception as exc:
             self.show_error(f"Failed to load wordlist:\n{exc}")
             return False
