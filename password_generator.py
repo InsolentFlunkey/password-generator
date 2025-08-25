@@ -43,7 +43,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QSizePolicy,
-    QSpacerItem,
 )
 
 # ---------------- Constants & defaults ----------------
@@ -308,14 +307,22 @@ class PasswordGeneratorWindow(QMainWindow):
         classes_layout.setColumnStretch(4, 0)
         classes_layout.setColumnStretch(5, 1)
 
-        root.addWidget(self.classes_box)
+        # Wrapper container for the top row so row order stays constant,
+        # but height hugs whichever section is visible.
+        self.top_area = QWidget()
+        self.top_area_layout = QVBoxLayout(self.top_area)
+        self.top_area_layout.setContentsMargins(0, 0, 0, 0)
+        self.top_area_layout.setSpacing(0)
+        self.top_area_layout.addWidget(self.classes_box)
+        root.addWidget(self.top_area)
 
         # -------- Parameters --------
         params_box = QGroupBox("Parameters")
-        grid = QGridLayout(params_box)
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(8)
-        grid.setContentsMargins(10, 8, 10, 10)
+        params_form = QFormLayout(params_box)
+        params_form.setHorizontalSpacing(8)
+        params_form.setVerticalSpacing(6)
+        params_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        params_form.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
 
         # Length controls  [-] [spin] [+]
         self.spin_length = QSpinBox()
@@ -340,11 +347,12 @@ class PasswordGeneratorWindow(QMainWindow):
         self.length_controls_w.setLayout(len_row)
         self.lbl_length = QLabel("Length:")
 
-        # Mode & Count row (two columns on the same row)
+        # Mode (single widget row)
         self.cmb_mode = QComboBox()
         self.cmb_mode.addItems(["Single", "Multiple"])
         self.cmb_mode.currentIndexChanged.connect(self.on_mode_changed)
 
+        # Count controls [-] [spin] [+]
         self.spin_count = QSpinBox()
         self.spin_count.setRange(1, 10_000)
         self.spin_count.setValue(10)
@@ -366,36 +374,32 @@ class PasswordGeneratorWindow(QMainWindow):
         self.count_controls_w = QWidget()
         self.count_controls_w.setLayout(cnt_row)
 
-        # Entropy/charset labels
+        # Add rows to Parameters (single column)
+        params_form.addRow(self.lbl_length, self.length_controls_w)
+        params_form.addRow("Mode:", self.cmb_mode)
+        params_form.addRow("Count:", self.count_controls_w)
+
+        # -------- Statistics --------
+        stats_box = QGroupBox("Statistics")
+        stats_form = QFormLayout(stats_box)
+        stats_form.setHorizontalSpacing(8)
+        stats_form.setVerticalSpacing(6)
+        stats_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        stats_form.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+
         self.lbl_entropy = QLabel("Entropy: —")
         self.lbl_charset = QLabel("Charset size: —")
         self.lbl_entropy.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.lbl_charset.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        # ---- Place items in a fixed 4-column grid ----
-        # Row 0: Length
-        grid.addWidget(self.lbl_length,           0, 0, alignment=Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.length_controls_w,    0, 1, 1, 3)
+        stats_form.addRow("Charset size:", self.lbl_charset)
+        stats_form.addRow("Estimated entropy:", self.lbl_entropy)
 
-        # Row 1: Mode | Count (same row)
-        grid.addWidget(QLabel("Mode:"),           1, 0, alignment=Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.cmb_mode,             1, 1)
-        grid.addWidget(QLabel("Count:"),          1, 2, alignment=Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.count_controls_w,     1, 3)
-
-        # Row 2: Charset size | Estimated entropy (same row)
-        grid.addWidget(QLabel("Charset size:"),   2, 0, alignment=Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.lbl_charset,          2, 1)
-        grid.addWidget(QLabel("Estimated entropy:"), 2, 2, alignment=Qt.AlignRight | Qt.AlignVCenter)
-        grid.addWidget(self.lbl_entropy,          2, 3)
-
-        # Let columns 1 and 3 grow; labels stay compact
-        grid.setColumnStretch(0, 0)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(2, 0)
-        grid.setColumnStretch(3, 1)
-
-        root.addWidget(params_box)
+        # Place the two groups side by side
+        params_stats_row = QHBoxLayout()
+        params_stats_row.addWidget(params_box, 1)
+        params_stats_row.addWidget(stats_box, 1)
+        root.addLayout(params_stats_row)
 
         # -------- Passphrase options (own group; 2-column grid) --------
         self.pass_box = QGroupBox("Passphrase options")
@@ -454,8 +458,8 @@ class PasswordGeneratorWindow(QMainWindow):
         pass_grid.setColumnStretch(1, 0)
         pass_grid.setColumnStretch(3, 1)
 
-        root.addWidget(self.pass_box)
-
+        self.top_area_layout.addWidget(self.pass_box)
+        self.pass_box.setVisible(False)  # start hidden unless preset selects it
 
         # Buttons
         btns = QHBoxLayout(); btns.setSpacing(8)
@@ -570,11 +574,11 @@ class PasswordGeneratorWindow(QMainWindow):
         idx = self.preset_combo.currentIndex()
         passphrase = (idx == 4)
 
-        # Show/hide major sections
+        # Show/hide major sections while keeping row order constant
         self.classes_box.setVisible(not passphrase)
+        self.pass_box.setVisible(passphrase)
         self.lbl_length.setVisible(not passphrase)
         self.length_controls_w.setVisible(not passphrase)
-        self.pass_box.setVisible(passphrase)
 
         if passphrase:
             # Do not clobber saved values; just ensure visibility and update entropy
