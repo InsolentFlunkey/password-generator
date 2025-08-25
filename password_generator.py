@@ -312,62 +312,59 @@ class PasswordGeneratorWindow(QMainWindow):
 
         # -------- Parameters --------
         params_box = QGroupBox("Parameters")
-        form = QFormLayout(params_box)
+        grid = QGridLayout(params_box)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(8)
+        grid.setContentsMargins(10, 8, 10, 10)
 
-        # Tighter form spacing & alignments (kept from before)
-        form.setHorizontalSpacing(8)
-        form.setVerticalSpacing(6)
-        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        form.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
-        form.setFieldGrowthPolicy(QFormLayout.FieldsStayAtSizeHint)
-
-        # Length spin (char-mode) with custom [- value +]
+        # Length controls  [-] [spin] [+]
         self.spin_length = QSpinBox()
         self.spin_length.setRange(4, 200)
         self.spin_length.setValue(16)
         self.spin_length.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.spin_length.setMaximumWidth(72)
-        self.spin_length.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
-        length_row = QHBoxLayout()
         self.btn_len_dec = QPushButton("–")
         self.btn_len_inc = QPushButton("+")
-        for b, delta in ((self.btn_len_dec, -1), (self.btn_len_inc, +1)):
-            b.setAutoRepeat(True)
-            b.setAutoRepeatDelay(250)
-            b.setAutoRepeatInterval(60)
+        for b, d in ((self.btn_len_dec, -1), (self.btn_len_inc, +1)):
+            b.setAutoRepeat(True); b.setAutoRepeatDelay(250); b.setAutoRepeatInterval(60)
             b.setFixedWidth(24)
-            b.clicked.connect(lambda _=False, d=delta: self.spin_length.setValue(self.spin_length.value() + d))
-        length_row.addWidget(self.btn_len_dec)
-        length_row.addWidget(self.spin_length)
-        length_row.addWidget(self.btn_len_inc)
-        self.length_row_w = self._row_to_widget(length_row)   # keep a handle so we can hide it
+            b.clicked.connect(lambda _=False, delta=d: self.spin_length.setValue(self.spin_length.value() + delta))
 
-        # Count (applies to both modes)
+        len_row = QHBoxLayout()
+        len_row.setSpacing(6)
+        len_row.addWidget(self.btn_len_dec)
+        len_row.addWidget(self.spin_length)
+        len_row.addWidget(self.btn_len_inc)
+        self.length_controls_w = QWidget()
+        self.length_controls_w.setLayout(len_row)
+        self.lbl_length = QLabel("Length:")
+
+        # Mode & Count row (two columns on the same row)
+        self.cmb_mode = QComboBox()
+        self.cmb_mode.addItems(["Single", "Multiple"])
+        self.cmb_mode.currentIndexChanged.connect(self.on_mode_changed)
+
         self.spin_count = QSpinBox()
         self.spin_count.setRange(1, 10_000)
         self.spin_count.setValue(10)
         self.spin_count.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.spin_count.setMaximumWidth(72)
-        self.spin_count.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
-        count_row = QHBoxLayout()
         self.btn_cnt_dec = QPushButton("–")
         self.btn_cnt_inc = QPushButton("+")
-        for b, delta in ((self.btn_cnt_dec, -1), (self.btn_cnt_inc, +1)):
-            b.setAutoRepeat(True)
-            b.setAutoRepeatDelay(250)
-            b.setAutoRepeatInterval(60)
+        for b, d in ((self.btn_cnt_dec, -1), (self.btn_cnt_inc, +1)):
+            b.setAutoRepeat(True); b.setAutoRepeatDelay(250); b.setAutoRepeatInterval(60)
             b.setFixedWidth(24)
-            b.clicked.connect(lambda _=False, d=delta: self.spin_count.setValue(self.spin_count.value() + d))
-        count_row.addWidget(self.btn_cnt_dec)
-        count_row.addWidget(self.spin_count)
-        count_row.addWidget(self.btn_cnt_inc)
-        self.count_row_w = self._row_to_widget(count_row)
+            b.clicked.connect(lambda _=False, delta=d: self.spin_count.setValue(self.spin_count.value() + delta))
 
-        self.cmb_mode = QComboBox()
-        self.cmb_mode.addItems(["Single", "Multiple"])
-        self.cmb_mode.currentIndexChanged.connect(self.on_mode_changed)
+        cnt_row = QHBoxLayout()
+        cnt_row.setSpacing(6)
+        cnt_row.addWidget(self.btn_cnt_dec)
+        cnt_row.addWidget(self.spin_count)
+        cnt_row.addWidget(self.btn_cnt_inc)
+        self.count_controls_w = QWidget()
+        self.count_controls_w.setLayout(cnt_row)
 
         # Entropy/charset labels
         self.lbl_entropy = QLabel("Entropy: —")
@@ -375,12 +372,28 @@ class PasswordGeneratorWindow(QMainWindow):
         self.lbl_entropy.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.lbl_charset.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        # Form rows
-        form.addRow("Length:", self.length_row_w)
-        form.addRow("Mode:", self.cmb_mode)
-        form.addRow("Count:", self.count_row_w)
-        form.addRow("Charset size:", self.lbl_charset)
-        form.addRow("Estimated entropy:", self.lbl_entropy)
+        # ---- Place items in a fixed 4-column grid ----
+        # Row 0: Length
+        grid.addWidget(self.lbl_length,           0, 0, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.length_controls_w,    0, 1, 1, 3)
+
+        # Row 1: Mode | Count (same row)
+        grid.addWidget(QLabel("Mode:"),           1, 0, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.cmb_mode,             1, 1)
+        grid.addWidget(QLabel("Count:"),          1, 2, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.count_controls_w,     1, 3)
+
+        # Row 2: Charset size | Estimated entropy (same row)
+        grid.addWidget(QLabel("Charset size:"),   2, 0, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.lbl_charset,          2, 1)
+        grid.addWidget(QLabel("Estimated entropy:"), 2, 2, alignment=Qt.AlignRight | Qt.AlignVCenter)
+        grid.addWidget(self.lbl_entropy,          2, 3)
+
+        # Let columns 1 and 3 grow; labels stay compact
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 1)
 
         root.addWidget(params_box)
 
@@ -559,7 +572,8 @@ class PasswordGeneratorWindow(QMainWindow):
 
         # Show/hide major sections
         self.classes_box.setVisible(not passphrase)
-        self.length_row_w.setVisible(not passphrase)
+        self.lbl_length.setVisible(not passphrase)
+        self.length_controls_w.setVisible(not passphrase)
         self.pass_box.setVisible(passphrase)
 
         if passphrase:
